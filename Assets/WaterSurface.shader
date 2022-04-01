@@ -61,10 +61,16 @@ Shader "Custom/WaterSurface"
             float f = k * (v.vertex.x - _Speed * _Time.y);
 
             v.vertex.y = sin(f) * _Amplitude;
+            v.vertex.x += cos(f) * _Amplitude;
 
             o.vertex = UnityObjectToClipPos(v.vertex);
 
-            float3 tangent = normalize(float3(1, k * _Amplitude * cos(f), 0));
+            float3 tangent = normalize(float3(
+                1 - k * _Amplitude * sin(f), 
+                k * _Amplitude * cos(f), 
+                0
+            ));
+
             float3 normal = float3(-tangent.y, tangent.x, 0);
 
             v.normal = normal;
@@ -81,7 +87,6 @@ Shader "Custom/WaterSurface"
             // fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             // o.Albedo = c.rgb;
             o.Albedo = _Color;
-
 
             // Metallic and smoothness come from slider variables
             // o.Metallic = _Metallic;
