@@ -24,18 +24,20 @@ Shader "Unlit/Water"
 
             #include "UnityCG.cginc"
 
-            struct appdata
+            struct appdata // vert input
             {
                 float4 vertex : POSITION;
                 // float2 uv : TEXCOORD0;
             };
 
-            struct v2f
+            struct v2f // frag input
             {
                 // float2 uv : TEXCOORD0;
                 UNITY_FOG_COORDS(1)
                 float4 vertex : SV_POSITION;
             };
+
+            
 
             fixed4 _Color;
             float _Amplitude;
@@ -47,13 +49,12 @@ Shader "Unlit/Water"
                 float k = 2 * UNITY_PI / _Wavelength;
 
                 v2f o;
-                
-                v.vertex.y = sin(k * (v.vertex.x - _Speed * _Time.y)) * _Amplitude;
 
-                v.vertex.y = sin(k * v.vertex.x) * _Amplitude;
+                v.vertex.y = sin((k * v.vertex.x) - (_Time.y * _Speed)) * _Amplitude;
 
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 
+                // transfer fog
                 UNITY_TRANSFER_FOG(o,o.vertex);
                 
                 return o;
@@ -61,8 +62,6 @@ Shader "Unlit/Water"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                // fixed4 col = _Color;
-
                 // apply fog
                 UNITY_APPLY_FOG(i.fogCoord, col);
 
