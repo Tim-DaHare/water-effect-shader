@@ -3,9 +3,10 @@ Shader "Custom/WaterSurface"
     Properties
     {
         _Color ("Color", Color) = (1,1,1,1)
-        _Amplitude ("Amplitude", Float) = 1
-        _Wavelength ("Wavelength", Float) = 10
-        _Speed ("Speed", Float) = 1
+
+        _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,0,0.5,10)
+        _WaveB ("Wave B", Vector) = (0,1,0.25,20)
+        _WaveC ("Wave C", Vector) = (1,1,0.15,10)
 
         _Glossiness ("Smoothness", Range(0,1)) = 0.5
         // _MainTex ("Albedo (RGB)", 2D) = "white" {}
@@ -25,6 +26,7 @@ Shader "Custom/WaterSurface"
         // Use shader model 3.0 target, to get nicer looking lighting
         #pragma target 3.0
 
+
         struct appdata // vert input
         {
             float4 vertex : POSITION;
@@ -39,10 +41,9 @@ Shader "Custom/WaterSurface"
         };
 
         fixed4 _Color;
-        float _Amplitude;
-        float _Wavelength;
-        float _Speed;
 
+        float4 _WaveA, _WaveB, _WaveC;
+        
         half _Glossiness;
         // half _Metallic;
 
@@ -53,30 +54,57 @@ Shader "Custom/WaterSurface"
             // put more per-instance properties here
         UNITY_INSTANCING_BUFFER_END(Props)
 
+        float3 GerstnerWave (
+			float4 wave, 
+            float3 p, 
+            inout float3 tangent, 
+            inout float3 binormal
+		) {
+		    float steepness = wave.z;
+		    float wavelength = wave.w;
+            
+		    float k = 2 * UNITY_PI / wavelength;
+			float c = sqrt(9.8 / k);
+
+			float2 d = normalize(wave.xy);
+			float f = k * (dot(d, p.xz) - c * _Time.y);
+
+			float a = steepness / k;
+
+			tangent += float3(
+				-d.x * d.x * (steepness * sin(f)),
+				d.x * (steepness * cos(f)),
+				-d.x * d.y * (steepness * sin(f))
+			);
+			binormal += float3(
+				-d.x * d.y * (steepness * sin(f)),
+				d.y * (steepness * cos(f)),
+				-d.y * d.y * (steepness * sin(f))
+			);
+			return float3(
+				d.x * (a * cos(f)),
+				a * sin(f),
+				d.y * (a * cos(f))
+			);
+		}
+
         Input vert (inout appdata v)
         {
             Input o;
 
-            float k = 2 * UNITY_PI / _Wavelength;
-            float f = k * (v.vertex.x - _Speed * _Time.y);
+            float3 gridPoint = v.vertex.xyz;
+			float3 tangent = float3(1, 0, 0);
+			float3 binormal = float3(0, 0, 1);
+			float3 p = gridPoint;
 
-            v.vertex.y = sin(f) * _Amplitude;
-            v.vertex.x += cos(f) * _Amplitude;
+			p += GerstnerWave(_WaveA, gridPoint, tangent, binormal);
+            p += GerstnerWave(_WaveB, gridPoint, tangent, binormal);
+            p += GerstnerWave(_WaveC, gridPoint, tangent, binormal);
 
-            o.vertex = UnityObjectToClipPos(v.vertex);
+			float3 normal = normalize(cross(binormal, tangent));
 
-            float3 tangent = normalize(float3(
-                1 - k * _Amplitude * sin(f), 
-                k * _Amplitude * cos(f), 
-                0
-            ));
-
-            float3 normal = float3(-tangent.y, tangent.x, 0);
-
-            v.normal = normal;
-            
-            // transfer fog
-            // UNITY_TRANSFER_FOG(o, o.vertex);
+			v.vertex.xyz = p;
+			v.normal = normal;
             
             return o;
         }
