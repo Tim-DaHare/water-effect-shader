@@ -3,12 +3,13 @@ Shader "Custom/WaterSurface"
     Properties
     {
         _Color ("Color", Color) = (1,1,1,1)
+        _MainTex ("Albedo (RGB)", 2D) = "white" {}
+        _BlendTex ("Blend Texture (RGB)", 2D) = "white" {}
+        _Smoothness ("Smoothness", Range(0,1)) = 0.5
 
         _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,0,0.5,10)
         _WaveB ("Wave B", Vector) = (0,1,0.25,20)
         _WaveC ("Wave C", Vector) = (1,1,0.15,10)
-
-        _Glossiness ("Smoothness", Range(0,1)) = 0.5
     }
 
     SubShader
@@ -24,12 +25,12 @@ Shader "Custom/WaterSurface"
         // Use shader model 3.0 target, to get nicer looking lighting
         #pragma target 3.0
 
-
         struct appdata // vert input
         {
             float4 vertex : POSITION;
             float3 normal : NORMAL;
             // Unity gives a warning if texcoord 1 and 2 are not set so i added them, they are not used anywhere...
+            float4 texcoord : TEXCOORD0;
             float4 texcoord1 : TEXCOORD1;
             float4 texcoord2 : TEXCOORD2;
         };
@@ -37,11 +38,16 @@ Shader "Custom/WaterSurface"
         struct Input // surf in struct
         {
             float4 vertex : SV_POSITION;
+            float2 uv_MainTex;
+            float2 uv_BlendTex;
         };
+
+        sampler2D _MainTex;
+        sampler2D _BlendTex;
 
         fixed4 _Color;
         float4 _WaveA, _WaveB, _WaveC;
-        half _Glossiness;
+        half _Smoothness;
 
         // This function samples a point in 3d space to create a wave effect. For example in the vertex or tesselation shader functions.
         float3 GerstnerWave (
@@ -121,12 +127,18 @@ Shader "Custom/WaterSurface"
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
-            // Set smoothness and albedo value to the values that are currently set in the unity material properties.
-            o.Smoothness = _Glossiness;
-            o.Albedo = _Color;
+            // Sample both textures
+            fixed4 c = tex2D(_MainTex, IN.uv_MainTex - _Time.y * 0.25f);
+            fixed4 d = tex2D(_BlendTex, IN.uv_BlendTex - _Time.y * 0.35f);
+
+            // Blend texture and assign to albedo value
+            o.Albedo = c.rgb * d.rgb * _Color;
 
             // Material is always fully opaque
             o.Alpha = 1;
+
+            // Set Smoothness
+            o.Smoothness = _Smoothness;
         }
 
         ENDCG
