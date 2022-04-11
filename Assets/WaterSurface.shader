@@ -4,12 +4,13 @@ Shader "Custom/WaterSurface"
     {
         _Color ("Color", Color) = (1,1,1,1)
         _MainTex ("Albedo (RGB)", 2D) = "white" {}
-        _BlendTex ("Blend Texture (RGB)", 2D) = "white" {}
+        // _BlendTex ("Blend Texture (RGB)", 2D) = "white" {}
+        _BumpMap ("NormalMap", 2D) = "bump" {}
         _Smoothness ("Smoothness", Range(0,1)) = 0.5
 
-        _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,0,0.5,10)
-        _WaveB ("Wave B", Vector) = (0,1,0.25,20)
-        _WaveC ("Wave C", Vector) = (1,1,0.15,10)
+        _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,1,0.25,60)
+        _WaveB ("Wave B", Vector) = (1,0.6,0.25,31)
+        _WaveC ("Wave C", Vector) = (1,1,0.25,18)
     }
 
     SubShader
@@ -33,6 +34,7 @@ Shader "Custom/WaterSurface"
             float4 texcoord : TEXCOORD0;
             float4 texcoord1 : TEXCOORD1;
             float4 texcoord2 : TEXCOORD2;
+            float4 tangent : TANGENT;
         };
 
         struct Input // surf in struct
@@ -40,10 +42,12 @@ Shader "Custom/WaterSurface"
             float4 vertex : SV_POSITION;
             float2 uv_MainTex;
             float2 uv_BlendTex;
+            float2 uv_BumpMap;
         };
 
         sampler2D _MainTex;
-        sampler2D _BlendTex;
+        // sampler2D _BlendTex;
+        sampler2D _BumpMap;
 
         fixed4 _Color;
         float4 _WaveA, _WaveB, _WaveC;
@@ -129,10 +133,11 @@ Shader "Custom/WaterSurface"
         {
             // Sample both textures
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex - _Time.y * 0.25f);
-            fixed4 d = tex2D(_BlendTex, IN.uv_BlendTex - _Time.y * 0.35f);
+            // fixed4 d = tex2D(_BlendTex, IN.uv_BlendTex - _Time.y * 0.35f);
 
             // Blend texture and assign to albedo value
-            o.Albedo = c.rgb * d.rgb * _Color;
+            o.Albedo = c.rgb * _Color;
+            o.Normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap - _Time.y * 0.25f));
 
             // Material is always fully opaque
             o.Alpha = 1;

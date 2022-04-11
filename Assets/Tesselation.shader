@@ -1,13 +1,9 @@
-Shader "Unlit/Water"
+Shader "Custom/Tesselation"
 {
     Properties
     {
-        _Color ("Color", Color) = (1,1,1,1)
-        _Amplitude ("Amplitude", Float) = 1
-        _Wavelength ("Wavelength", Float) = 10
-        _Speed ("Speed", Float) = 1
+        _MainTex ("Texture", 2D) = "white" {}
     }
-
     SubShader
     {
         Tags { "RenderType"="Opaque" }
@@ -16,58 +12,58 @@ Shader "Unlit/Water"
         Pass
         {
             CGPROGRAM
+
             #pragma vertex vert
             #pragma fragment frag
-
+            #pragma hull MyHullProgram
             // make fog work
             #pragma multi_compile_fog
 
-            #include "UnityCG.cginc"
+            #pragma target 4.6
 
-            struct appdata // vert input
+            #include "UnityCG.cginc"
+            #include "MyTessellation.cginc"
+
+            struct appdata
             {
                 float4 vertex : POSITION;
-                // float2 uv : TEXCOORD0;
+                float2 uv : TEXCOORD0;
             };
 
-            struct v2f // frag input
+            struct v2f
             {
-                // float2 uv : TEXCOORD0;
+                float2 uv : TEXCOORD0;
                 UNITY_FOG_COORDS(1)
                 float4 vertex : SV_POSITION;
             };
 
-            
-
-            fixed4 _Color;
-            float _Amplitude;
-            float _Wavelength;
-            float _Speed;
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
 
             v2f vert (appdata v)
             {
-                float k = 2 * UNITY_PI / _Wavelength;
-
                 v2f o;
-
-                v.vertex.y = sin((k * v.vertex.x) - (_Time.y * _Speed)) * _Amplitude;
-
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                
-                // transfer fog
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 UNITY_TRANSFER_FOG(o,o.vertex);
-                
                 return o;
+            }
+
+            VertexData MyHullProgram (
+                InputPatch<VertexData, 3> patch,
+                uint id : SV_OutputControlPointID
+            ) {
+                return patch[id];
             }
 
             fixed4 frag (v2f i) : SV_Target
             {
+                // sample the texture
+                fixed4 col = tex2D(_MainTex, i.uv);
                 // apply fog
                 UNITY_APPLY_FOG(i.fogCoord, col);
-
-                return _Color;
+                return col;
             }
-
             ENDCG
         }
     }
