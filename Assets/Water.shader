@@ -24,6 +24,7 @@ Shader "Custom/Water"
             #pragma fragment frag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             #define UNITY_PI 3.14159265359f
 
@@ -38,7 +39,7 @@ Shader "Custom/Water"
             {
                 float4 positionHCS : SV_POSITION;
                 float2 uv_MainTex : TEXCOORD0;
-                // float2 uv_BumpMap : TEXCOORD1;
+                float2 uv_BumpMap : TEXCOORD1;
                 // float3 normal : NORMAL;
             };
 
@@ -51,7 +52,7 @@ Shader "Custom/Water"
                 float4 _MainTex_ST;
                 float4 _BumpMap_ST;
 
-                half4 _Color;
+                float4 _Color;
                 float4 _WaveA, _WaveB, _WaveC;
                 half _Smoothness;
             CBUFFER_END
@@ -131,31 +132,31 @@ Shader "Custom/Water"
                 // o.normal = normal;
                 
                 o.positionHCS = TransformObjectToHClip(p);
+                
                 o.uv_MainTex = TRANSFORM_TEX(v.uv, _MainTex);
+                o.uv_BumpMap = TRANSFORM_TEX(v.uv, _BumpMap);
                 
                 // return the final result
                 return o;
+
             }
 
-            half4 frag (fragInput IN) : SV_Target
+            float4 frag (fragInput IN) : SV_Target
             {
-                // Sample both textures
-                // fixed4 c = tex2D(_MainTex, IN.uv_MainTex - _Time.y * 0.25f);
-                // // fixed4 d = tex2D(_BlendTex, IN.uv_BlendTex - _Time.y * 0.35f);
+                float3 LightDirection = float3(1, 1, 1);
+                // float3 LightColor = 1.0f;
+                // float3 AmbientColor = 0.35f;
+                float scrollSpeed = 0.1f;
 
-                // // Blend texture and assign to albedo value
-                // o.Albedo = c.rgb * _Color;
-                // o.Normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap - _Time.y * 0.25f));
+                half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv_MainTex - _Time.y * scrollSpeed);
 
-                // // Material is always fully opaque
-                // o.Alpha = 1;
+                float4 normal = 2.0 * SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv_BumpMap - _Time.y * scrollSpeed) - 1.0;
+                float lightAmount = max(dot(normal.xyz, LightDirection), 0.0);
 
-                // // Set Smoothness
-                // o.Smoothness = _Smoothness;
+                float4 color = _Color;
+                color.rgb *= lightAmount;
 
-                half4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv_MainTex);
-
-                return color;
+                return tex * color;
             }
             
             ENDHLSL
