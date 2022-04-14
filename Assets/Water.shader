@@ -30,13 +30,16 @@ Shader "Custom/Water"
             struct vertInput
             {
                 float4 vertex : POSITION;
-                float3 normal : NORMAL;
+                // float3 normal : NORMAL;
+                float2 uv : TEXCOORD0;
             };
 
             struct fragInput
             {
+                float4 positionHCS : SV_POSITION;
                 float2 uv_MainTex : TEXCOORD0;
-                float2 uv_BumpMap: TEXCOORD1;
+                // float2 uv_BumpMap : TEXCOORD1;
+                // float3 normal : NORMAL;
             };
 
             TEXTURE2D(_MainTex);
@@ -52,8 +55,6 @@ Shader "Custom/Water"
                 float4 _WaveA, _WaveB, _WaveC;
                 half _Smoothness;
             CBUFFER_END
-
-            
 
             // This function samples a point in 3d space to create a wave effect. For example in the vertex or tesselation shader functions.
             float3 GerstnerWave (
@@ -103,16 +104,14 @@ Shader "Custom/Water"
                 );
             }
 
-            // fragInput VOUT;
-            // UNITY_INITIALIZE_OUTPUT(VertexOutput, VOUT);
-
             fragInput vert(vertInput v)
             {
                 fragInput o;
-                // UNITY_INITIALIZE_OUTPUT(fragInput, o);
+                o.positionHCS.w = 1;
 
                 // create variables for use in the wave function
                 float3 gridPoint = v.vertex.xyz;
+                // float3 gridPoint = TransformObjectToHClip(v.vertex.xyz).xyz;
                 float3 tangent = float3(1, 0, 0);
                 float3 binormal = float3(0, 0, 1);
 
@@ -125,11 +124,14 @@ Shader "Custom/Water"
                 p += GerstnerWave(_WaveC, gridPoint, tangent, binormal);
 
                 // calculate the normal with the calculated binormal and tangent from the wave function
-                float3 normal = normalize(cross(binormal, tangent));
+                // float3 normal = normalize(cross(binormal, tangent));
 
                 // set the vertex postition and normal value
-                v.vertex.xyz = p;
-                v.normal = normal;
+                // o.positionHCS = float4(p.xyz, 1);
+                // o.normal = normal;
+                
+                o.positionHCS = TransformObjectToHClip(p);
+                o.uv_MainTex = TRANSFORM_TEX(v.uv, _MainTex);
                 
                 // return the final result
                 return o;
@@ -151,8 +153,11 @@ Shader "Custom/Water"
                 // // Set Smoothness
                 // o.Smoothness = _Smoothness;
 
-                return _Color;
+                half4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv_MainTex);
+
+                return color;
             }
+            
             ENDHLSL
         }
     }
