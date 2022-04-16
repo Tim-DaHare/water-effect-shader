@@ -6,6 +6,7 @@ Shader "Custom/Water"
         _MainTex ("Albedo (RGB)", 2D) = "white" {}
         _BumpMap ("NormalMap", 2D) = "bump" {}
         _Smoothness ("Smoothness", Range(0,1)) = 0.5
+        _TesselationFactor ("TesselationFactor", Range(1,10)) = 1
 
         _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,1,0.25,60)
         _WaveB ("Wave B", Vector) = (1,0.6,0.25,31)
@@ -22,24 +23,27 @@ Shader "Custom/Water"
 
             #pragma vertex vert
             #pragma fragment frag
+            #pragma hull hullProgram
+            #pragma domain domainProgram
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            // #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "MyTessellation.cginc"
 
             #define UNITY_PI 3.14159265359f
 
             struct vertInput
             {
-                float4 vertex : POSITION;
+                float4 vertex   : POSITION;
                 // float3 normal : NORMAL;
-                float2 uv : TEXCOORD0;
+                float2 uv       : TEXCOORD0;
             };
 
             struct fragInput
             {
-                float4 positionHCS : SV_POSITION;
-                float2 uv_MainTex : TEXCOORD0;
-                float2 uv_BumpMap : TEXCOORD1;
+                float4 positionHCS  : SV_POSITION;
+                float2 uv_MainTex   : TEXCOORD0;
+                float2 uv_BumpMap   : TEXCOORD1;
                 // float3 normal : NORMAL;
             };
 
@@ -55,6 +59,7 @@ Shader "Custom/Water"
                 float4 _Color;
                 float4 _WaveA, _WaveB, _WaveC;
                 half _Smoothness;
+                float _TesselationFactor;
             CBUFFER_END
 
             // This function samples a point in 3d space to create a wave effect. For example in the vertex or tesselation shader functions.
@@ -138,10 +143,59 @@ Shader "Custom/Water"
                 
                 // return the final result
                 return o;
-
             }
 
-            float4 frag (fragInput IN) : SV_Target
+            struct tessellationFactors
+            {
+                float edge[3]   : SV_TessFactor;
+                float inside    : SV_InsideTessFactor;
+            };
+
+            tessellationFactors patchConstantFunc(InputPatch<vertInput, 3> patch) {
+                tessellationFactors f;
+
+                f.edge[0] = _TesselationFactor;
+				f.edge[1] = _TesselationFactor;
+				f.edge[2] = _TesselationFactor;
+				f.inside = _TesselationFactor;
+
+				return f;
+            }
+
+            [domain("tri")]
+			[outputcontrolpoints(3)]
+			[outputtopology("triangle_cw")]
+			[partitioning("integer")]
+			[patchconstantfunc("patchConstantFunc")]
+            vertInput hullProgram(InputPatch<vertInput, 3> patch, uint id : SV_OutputControlPointID)
+            {
+                return patch[id];
+            }
+
+            [domain("tri")]
+			// InterpolatorsVertex domainProgram(tessellationFactors factors, OutputPatch<VertexInput, 3> patch, float3 barycentricCoordinates : SV_DomainLocation)
+            vertInput domainProgram(tessellationFactors factors, OutputPatch<vertInput, 3> patch, float3 barycentricCoordinates : SV_DomainLocation)
+            {
+				vertInput i;
+
+				#define INTERPOLATE(fieldname) i.fieldname = \
+					patch[0].fieldname * barycentricCoordinates.x + \
+					patch[1].fieldname * barycentricCoordinates.y + \
+					patch[2].fieldname * barycentricCoordinates.z;
+
+				INTERPOLATE(vertex)
+				// INTERPOLATE(normal)
+				// INTERPOLATE(tangent)
+				INTERPOLATE(uv)
+
+                // patch[0].uv = float3(0, 1, 0);
+                // patch[1].uv = float3(0, 1, 0);
+                // patch[2].uv = float3(0, 1, 0);
+
+				return i;
+			}
+
+            float4 frag(fragInput IN) : SV_Target
             {
                 float3 LightDirection = float3(1, 1, 1);
                 // float3 LightColor = 1.0f;
@@ -156,6 +210,7 @@ Shader "Custom/Water"
                 float4 color = _Color;
                 color.rgb *= lightAmount;
 
+                return tex;
                 return tex * color;
             }
             
