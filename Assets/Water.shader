@@ -5,8 +5,7 @@ Shader "Custom/Water"
         _Color ("Color", Color) = (1,1,1,1)
         _MainTex ("Albedo (RGB)", 2D) = "white" {}
         _BumpMap ("NormalMap", 2D) = "bump" {}
-        _Smoothness ("Smoothness", Range(0,1)) = 0.5
-        _TesselationFactor ("TesselationFactor", Range(1,10)) = 1
+        _TesselationFactor ("TesselationFactor", Range(1, 50)) = 1
 
         _WaveA ("Wave A (dir, steepness, wavelength)", Vector) = (1,1,0.25,60)
         _WaveB ("Wave B", Vector) = (1,0.6,0.25,31)
@@ -27,24 +26,43 @@ Shader "Custom/Water"
             #pragma domain domainProgram
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            // #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "MyTessellation.cginc"
 
             #define UNITY_PI 3.14159265359f
 
+            // Struct for input to the shader stage
             struct vertInput
             {
                 float4 vertex   : POSITION;
-                // float3 normal : NORMAL;
                 float2 uv       : TEXCOORD0;
             };
 
+            // Struct for determining how mesh will be tesselated, used in the patchConstant function
+            struct tessellationFactors
+            {
+                float edge[3]   : SV_TessFactor;
+                float inside    : SV_InsideTessFactor;
+            };
+
+            // Struct for input to the hull stage
+            struct hullInput
+            {
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+            };
+
+            // Struct for input to the domain stage
+            struct domainInput
+            {
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+            };
+
+            // Struct for input to the fragment stage
             struct fragInput
             {
                 float4 positionHCS  : SV_POSITION;
-                float2 uv_MainTex   : TEXCOORD0;
-                float2 uv_BumpMap   : TEXCOORD1;
-                // float3 normal : NORMAL;
+                float2 uv           : TEXCOORD0;
             };
 
             TEXTURE2D(_MainTex);
@@ -65,9 +83,7 @@ Shader "Custom/Water"
             // This function samples a point in 3d space to create a wave effect. For example in the vertex or tesselation shader functions.
             float3 GerstnerWave (
                 float4 wave, 
-                float3 p, 
-                inout float3 tangent, 
-                inout float3 binormal
+                float3 p
             ) {
                 // Create variables for wave config these will influence how the final waves will look. 
                 // steepness is stored in the z component of the wave vector and the wavelength is stored in the w component.
@@ -89,19 +105,6 @@ Shader "Custom/Water"
                 // dividing the steepness bij the original sample value (k) prevents that the sample point will overshoot the sine wave and make sure there are no weird looping effects
                 float a = steepness / k;
 
-                // Normal calculations... i will admit this is kind of above my current level of understanding. 
-                // But i know that it calculates the current direction of the pixel which will impact how the material interacts with lighting.
-                tangent += float3(
-                    -d.x * d.x * (steepness * sin(f)),
-                    d.x * (steepness * cos(f)),
-                    -d.x * d.y * (steepness * sin(f))
-                );
-                binormal += float3(
-                    -d.x * d.y * (steepness * sin(f)),
-                    d.y * (steepness * cos(f)),
-                    -d.y * d.y * (steepness * sin(f))
-                );
-
                 // Sample the position coordinates for every component these positions will move in a circular motion and give the wave-like effect.
                 return float3(
                     d.x * (a * cos(f)),
@@ -110,50 +113,32 @@ Shader "Custom/Water"
                 );
             }
 
-            fragInput vert(vertInput v)
+            hullInput vert(vertInput v)
             {
-                fragInput o;
-                o.positionHCS.w = 1;
+                // Hi Vincent, i know this vertex shader looks really empty, but i have a reason for this.
+                // The effect i am trying to create is a gersner wave with a LOD slider (dynamic tesselation factor)
+                // The transformation of the vertex positions is better done in the domain stage for my effect.
+                // If i only do this in the vertex stage the tesselated vertices will not behave properly so i hope you see this as a good reason.
+                // I also use the tesselation factor property in the patchConstant function to determine how the vertices should be tesselated,
+                // so there is also some tesselation specific functionality implemented there and not only vertex transformation.
 
-                // create variables for use in the wave function
-                float3 gridPoint = v.vertex.xyz;
-                // float3 gridPoint = TransformObjectToHClip(v.vertex.xyz).xyz;
-                float3 tangent = float3(1, 0, 0);
-                float3 binormal = float3(0, 0, 1);
+                // declare output for hull stage...
+                hullInput o;
 
-                // create a value (p) which will accumulate all the results from the 3 different waves
-                float3 p = gridPoint;
+                // passthrough vertex position
+                o.vertex = v.vertex;
 
-                // use the gerstner function for each wave and add the results togheter to create a detailed result
-                p += GerstnerWave(_WaveA, gridPoint, tangent, binormal);
-                p += GerstnerWave(_WaveB, gridPoint, tangent, binormal);
-                p += GerstnerWave(_WaveC, gridPoint, tangent, binormal);
-
-                // calculate the normal with the calculated binormal and tangent from the wave function
-                // float3 normal = normalize(cross(binormal, tangent));
-
-                // set the vertex postition and normal value
-                // o.positionHCS = float4(p.xyz, 1);
-                // o.normal = normal;
+                // assign uv coordinate (both textures are of the same size so its fine)
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 
-                o.positionHCS = TransformObjectToHClip(p);
-                
-                o.uv_MainTex = TRANSFORM_TEX(v.uv, _MainTex);
-                o.uv_BumpMap = TRANSFORM_TEX(v.uv, _BumpMap);
-                
-                // return the final result
+                // return the final result to the hull stage
                 return o;
             }
 
-            struct tessellationFactors
-            {
-                float edge[3]   : SV_TessFactor;
-                float inside    : SV_InsideTessFactor;
-            };
-
-            tessellationFactors patchConstantFunc(InputPatch<vertInput, 3> patch) {
+            tessellationFactors patchConstantFunc(InputPatch<hullInput, 3> patch) {
                 tessellationFactors f;
 
+                // Assign the _TesselationFactor property value to the edge and inside constant values 
                 f.edge[0] = _TesselationFactor;
 				f.edge[1] = _TesselationFactor;
 				f.edge[2] = _TesselationFactor;
@@ -167,50 +152,62 @@ Shader "Custom/Water"
 			[outputtopology("triangle_cw")]
 			[partitioning("integer")]
 			[patchconstantfunc("patchConstantFunc")]
-            vertInput hullProgram(InputPatch<vertInput, 3> patch, uint id : SV_OutputControlPointID)
+            domainInput hullProgram(InputPatch<hullInput, 3> patch, uint id : SV_OutputControlPointID)
             {
+                //return vertex by using the passed patch and id
                 return patch[id];
             }
 
             [domain("tri")]
-			// InterpolatorsVertex domainProgram(tessellationFactors factors, OutputPatch<VertexInput, 3> patch, float3 barycentricCoordinates : SV_DomainLocation)
-            vertInput domainProgram(tessellationFactors factors, OutputPatch<vertInput, 3> patch, float3 barycentricCoordinates : SV_DomainLocation)
+            fragInput domainProgram(tessellationFactors factors, OutputPatch<domainInput, 3> patch, float3 barycentricCoordinates : SV_DomainLocation)
             {
-				vertInput i;
+				fragInput i;
 
-				#define INTERPOLATE(fieldname) i.fieldname = \
-					patch[0].fieldname * barycentricCoordinates.x + \
-					patch[1].fieldname * barycentricCoordinates.y + \
-					patch[2].fieldname * barycentricCoordinates.z;
+                // Interpolate the new vertex position using the barycentric coordinates
+                float4 vertexPosition = barycentricCoordinates.x * patch[0].vertex + barycentricCoordinates.y * patch[1].vertex + barycentricCoordinates.z * patch[2].vertex;
 
-				INTERPOLATE(vertex)
-				// INTERPOLATE(normal)
-				// INTERPOLATE(tangent)
-				INTERPOLATE(uv)
+                // create variables for use in the wave function
+                float3 gridPoint = vertexPosition.xyz;
 
-                // patch[0].uv = float3(0, 1, 0);
-                // patch[1].uv = float3(0, 1, 0);
-                // patch[2].uv = float3(0, 1, 0);
+                // create a value (p) which will accumulate all the results from the 3 different waves
+                float3 p = gridPoint;
 
+                // use the gerstner function for each wave and add the results togheter to create a detailed result
+                p += GerstnerWave(_WaveA, gridPoint);
+                p += GerstnerWave(_WaveB, gridPoint);
+                p += GerstnerWave(_WaveC, gridPoint);
+
+                // Convert object space vertex position to HClip
+                i.positionHCS = TransformObjectToHClip(p);
+
+                // Interpolate the new uv coordinates using the barycentric coordinates
+                float2 uv = (barycentricCoordinates.x * patch[0].uv + barycentricCoordinates.y * patch[1].uv + barycentricCoordinates.z * patch[2].uv).xy;
+
+                // assign interpolatd uv coordinate
+                i.uv = TRANSFORM_TEX(uv, _MainTex);
+        
+                // send the interpolated data to the fragment stage
 				return i;
 			}
 
             float4 frag(fragInput IN) : SV_Target
             {
-                float3 LightDirection = float3(1, 1, 1);
-                // float3 LightColor = 1.0f;
-                // float3 AmbientColor = 0.35f;
+                float3 LightDirection = float3(0.6, 1, 0);
                 float scrollSpeed = 0.1f;
 
-                half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv_MainTex - _Time.y * scrollSpeed);
+                // Sample the texture using the scrollspeed
+                half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv - _Time.y * scrollSpeed);
 
-                float4 normal = 2.0 * SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv_BumpMap - _Time.y * scrollSpeed) - 1.0;
+                // Convert normal space from 0~1 to -1~1
+                float4 normal = 2.0 * SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv - _Time.y * scrollSpeed) - 1.0;
+                // Calculate the amount of light reflected using the dot product
                 float lightAmount = max(dot(normal.xyz, LightDirection), 0.0);
 
+                // Create variable to use for combining the texel color with the lighted color
                 float4 color = _Color;
                 color.rgb *= lightAmount;
 
-                return tex;
+                // return the combined texel color and lighted color
                 return tex * color;
             }
             

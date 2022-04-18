@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Water
-  m_Shader: {fileID: 4800000, guid: bfa8da2f3850033448598a2faefe8a7d, type: 3}
+  m_Shader: {fileID: 4800000, guid: 7dac5e3266fe88948a51fee13faf9396, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -25,7 +25,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 2800000, guid: 61b67de465ca2bc42b748dfc3df08f39, type: 3}
-        m_Scale: {x: 5, y: 5}
+        m_Scale: {x: 3, y: 3}
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - _Amplitude: 1
@@ -33,10 +33,10 @@ Material:
     - _Metallic: 0
     - _Smoothness: 1
     - _Speed: 1
-    - _TesselationFactor: 10
+    - _TesselationFactor: 50
     - _Wavelength: 10
     m_Colors:
-    - _Color: {r: 0.4503382, g: 0.8017886, b: 0.8301887, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _WaveA: {r: 1, g: 1, b: 0.25, a: 60}
     - _WaveB: {r: 1, g: 0.6, b: 0.25, a: 31}
     - _WaveC: {r: 1, g: 1, b: 0.25, a: 18}
