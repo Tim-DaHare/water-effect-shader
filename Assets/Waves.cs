@@ -60,5 +60,10 @@ public class Waves : MonoBehaviour
         mesh.uv = uv;
 
         _meshFilter.mesh = mesh;
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Application.Quit();
+        }
     }
 }
