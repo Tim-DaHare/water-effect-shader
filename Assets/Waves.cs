@@ -23,8 +23,7 @@ public class Waves : MonoBehaviour
         
         Mesh mesh = new Mesh();
 
-        Vector3[] vertices = new Vector3[4]
-        {
+        Vector3[] vertices = {
             new Vector3(0, 0, 0),
             new Vector3(width, 0, 0),
             new Vector3(0, 0, length),
@@ -41,8 +40,7 @@ public class Waves : MonoBehaviour
         };
         mesh.triangles = tris;
 
-        Vector3[] normals = new Vector3[4]
-        {
+        Vector3[] normals = {
             Vector3.up,
             Vector3.up,            
             Vector3.up,
@@ -50,8 +48,7 @@ public class Waves : MonoBehaviour
         };
         mesh.normals = normals;
 
-        Vector2[] uv = new Vector2[4]
-        {
+        Vector2[] uv = {
             new Vector2(0, 0),
             new Vector2(1, 0),
             new Vector2(0, 1),
